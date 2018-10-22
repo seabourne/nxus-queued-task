@@ -1,7 +1,7 @@
 {
   "name": "nxus-worker-queue-status",
   "version": "4.0.0",
-  "description": "Status page for nxus-worker-queue jobs",
+  "description": "Status routes for nxus-worker-queue jobs",
   "main": "lib",
   "scripts": {
     "preversion": "npm test",
@@ -40,6 +40,7 @@
     "babel-register": "^6.26.0",
     "documentation": "^6.1.0",
     "jest": "^23.6.0",
-    "nxus-tester-jest": "^4.0.0"
+    "nxus-tester-jest": "^4.0.0",
+    "sails-mongo": "^0.12.1"
   }
 }
