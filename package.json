@@ -1,5 +1,5 @@
 {
-  "name": "nxus-worker-queue-status",
+  "name": "nxus-queued-task",
   "version": "4.0.0",
   "description": "Status routes for nxus-worker-queue jobs",
   "main": "lib",
@@ -15,14 +15,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nxus/worker-queue-status.git"
+    "url": "git+https://github.com/seabourne/nxus-queued-task.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/nxus/worker-queue-status/issues"
+    "url": "https://github.com/seabourne/nxus-queued-task/issues"
   },
-  "homepage": "https://github.com/nxus/worker-queue-status/",
+  "homepage": "https://github.com/seabourne/nxus-queued-task/",
   "dependencies": {
     "bluebird": "^3.3.5",
     "mongodb": "^3.1.8",
