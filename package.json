@@ -25,7 +25,6 @@
   "homepage": "https://github.com/seabourne/nxus-queued-task/",
   "dependencies": {
     "bluebird": "^3.3.5",
-    "mongodb": "^3.1.8",
     "nxus-core": "^4.0.0",
     "nxus-router": "^4.0.0",
     "nxus-storage": "^4.0.0",
@@ -40,7 +39,6 @@
     "babel-register": "^6.26.0",
     "documentation": "^6.1.0",
     "jest": "^23.6.0",
-    "nxus-tester-jest": "^4.0.0",
-    "sails-mongo": "^0.12.1"
+    "nxus-tester-jest": "^4.0.1"
   }
 }
