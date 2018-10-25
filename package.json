@@ -39,6 +39,6 @@
     "babel-register": "^6.26.0",
     "documentation": "^6.1.0",
     "jest": "^23.6.0",
-    "nxus-tester-jest": "^4.0.1"
+    "nxus-tester-jest": "^4.0.2"
   }
 }
