@@ -1,3 +1,6 @@
 module.exports = {
-  preset: "nxus-tester-jest"
+  preset: "nxus-tester-jest",
+  testEnvironmentOptions: {
+    server: 'testApp/index.js'
+  }
 }
