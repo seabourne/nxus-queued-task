@@ -8,88 +8,177 @@
 
 Queued Tasks.
 
-The `completed` state of a task depends on its `progress`. A task is
-completed when its progress value is 1.0 (or greater).
+Wrapper around nxus-worker-queue to provide more structured handling
+of queued tasks.
+
+For synchronization with worker queue tasks, it allows tasks to
+update the queued task state and progress, and it provides
+notification events for task progress and completion.
+
+For handling client requests, it provides routing and a polling
+protocol for monitorinng task progress.
+
+### Task state object
+
+The state of a queued task is described by an object with these
+properties:
+
+-   `id` - string, task id
+-   `name` - string, worker queue task name
+-   `jobId` - string, worker queue job id
+-   `progress` - number in the range `[0..1]`, indicates progress of
+      the task towards completion; a task is completed when its
+      progress reaches one.
+-   `completed` - boolean, true when task is completed
+-   `timestamp` - number, modification timestamp
+-   `taskData` - object containing input data for the task; may be
+      updated with intermediate results
+-   `taskResults` - results data for the task; may be updated with
+      intermediate results
+-   `lifespan` - number of milliseconds, the minimum amount of time
+      task data should be preserved after task completion
+-   `route` - string (internal use), route URL
+
+The `getTaskState()` method is used to retrieve the task state for a
+queued task, and `updateTaskState()` to update it.
+
+See `taskRequestRoute()` for additional detail on how the task state
+object is used to transfer task data between client and server.
+Essentially, `taskData` holds data from the client, or
+server-generated data that won't be shared directly with the client,
+and `taskResults` holds results data that will be shared.
+
+### Events
+
+-   `queued-task-progress` - emitted when the progress of a queued
+      task changes, with the task state object as argument; it will
+      always be emitted when the task completes, and will be emitted
+      for any intermediate changes to the task progress
+
+      Note that `queued-task-progress` events will continue to be
+      emitted for a task that has been restarted (due to an
+      application restart, for example). For long-running tasks,
+      this may provide more reliable synchronization than relying
+      on the `job.finished()` promise.
+
+### Persistent storage of task information
+
+The nxus-worker-queue module uses a Redis database for managing the
+worker task queues and synchronizing between worker and web
+processes. In particular, the Redis entry for a task records task
+progress and completion.
+
+The Redis database, however, is typically configured with limited
+storage capacity, so it's not a good choice for storing task data.
+Instead, we pair the Redis entry with a `QueuedTask` model to hold
+the task data, and use the Redis entry solely for coordination with
+the worker task queue. The Redis entry `data.id` property and the
+`QueuedTask` `jobId` property link the two together.
+
+MongoDB has a 16 megabyte size limit on BSON documents.
+
+### To Do
+
+-   The code below would benefit from having direct access to the
+    nxus-worker-queue task queues. As it is, we grab the queue
+    information when jobs are created, but this information will be
+    lost across a process restart. In fact, there seems to be a
+    more general problem in establishing queue event handlers in the
+    web process, independent of job creation.
+
+### createTaskQueue
+
+Creates a task queue.
+This is a simple wrapper around a nxus-worker-queue task handler
+that adapts it to use task state objects.
+
+**Parameters**
+
+-   `name` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** name of the task queue
+-   `handler` **[Function](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function)** handler for processing task requests;
+      passed a task state object; should return a promise that resolves
+      on completion to an object containing task state properties
+      (suitable for input to `updateTaskStatus()`)
+-   `options` **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** queue options (passed to the Bull
+      `Queue` constructor) (optional, default `{}`)
 
 ### createTask
 
 Creates a queued task.
+It assembles a task state object for the task, then starts a task,
+passing it the task state object.
+
+When the worker queue task completes, the queued task is marked as
+completed. If successful, the task `taskResults` are updated with
+the results from the worker queue task; if there is an error, the
+error status is added as a `taskResults.msg` property.
 
 **Parameters**
 
--   `properties` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object))** initial properties; may be either
-      a `name` string or an object containing `name`, `progress` and
-      `taskData` properties.
+-   `properties` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object))** initial task state properties;
+      may be either a task queue `name` string or an object containing
+      `name`, `progress` and `taskData` properties.
 
-Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** created queued task entity
+Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** task state object for created queued task
 
-### createWorkerTask
+### getTaskState
 
-Creates a queued task backed by a worker queue task.
-It creates the queued task, then starts a worker queue task using
-the queued task name, passing it the queued task entity. When the
-worker task completes, the queued task is marked as completed.
-If the worker task is successful, the `taskData` is updated with
-its results; if it fails, its error status is added as a
-`taskData.error` property.
-
-Since the worker queue task has access to the queued task entity,
-it can update the task `progress` state or `taskData` properties.
+Gets the task state object.
 
 **Parameters**
 
--   `properties` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object))** initial properties; may be either
-      a `name` string or an object containing `name`, `progress` and
-      `taskData` properties.
+-   `id` **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** task id
 
-Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** created queued task entity
+Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** task state object; undefined if no match for id
 
-### updateTask
+### updateTaskState
 
-Updates a queued task.
+Updates the task state for a queued task.
+May be invoked from a worker queue task to record progress or
+intermediate results.
 
 **Parameters**
 
--   `id` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** id of queued task
+-   `id` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** task id
 -   `properties` **(float | [Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object))** properties to update; may be
-      either a `progress` float or an object containing `progress` and
-      `taskData` properties (which update the existing `taskData`
-      properties)
+      either a `progress` float or an object containing `progress`,
+      `taskData` and `taskResults` properties (non-null `taskData` or
+      `taskResults` properties are merged into the existing properties)
 
-Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** updated queued task entity
-
-### getTask
-
-Gets queued task entity.
-
-**Parameters**
-
--   `id` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** id of queued task
-
-Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** queued task entity
-
-### findTasks
-
-Finds queued task entities.
-
-**Parameters**
-
--   `query` **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** query object
-
-Returns **[Array](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array)** queued task entities
+Returns **[Object](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object)** updated task state object
 
 ### taskRequestRoute
 
 Creates request route for the queued task.
+The route can be used to initiate a request and to poll its status.
 
 -   POST _`route`_\`
+
+A single route is used for both request initiation and status
+polling. The handler uses the absence of an `id` property in the
+request to indicate the initial invocation. Subsequent invocations
+(with `id` property) are treated as polling for task status.
+
+The response body is a JSON object containing a `task` object with
+`id`, `progress`, `taskResults`, `completed` and `timestamp`
+properties.
+
+A polling request should specify the task `id` and the `timestamp`
+property from the most recent response. The handler compares the
+timestamp with the current task state timestamp to determine
+whether the state has changed since last reported. The handler
+delays a response until there is a change in state (although it
+will respond with unchanged state information to avoid a request
+timeout).
+
+Intended for use with <monitored-data-request>.
 
 **Parameters**
 
 -   `route` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** URL for the route
--   `task` **([string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Function](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function))** worker task name or task method;
-      if passed a task name string, uses `createWorkerTask()` to
-      initiate the task, passing it the task name and any initial
-      `taskData` specified in the request body; if passed a function,
-      it invokes it to initiate the task, passing it the request,
-      expecting a task entity to be returned
+-   `taskName` **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** worker task name
+-   `initiate` **[Function](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/function)** task initiation method, passed the
+      request and expected to return a promise that resolves to a task
+      state object; if omitted, the task is created with
+      `createTask()`, using the task name, and initializing `taskData`
+      to the contents of the request body
