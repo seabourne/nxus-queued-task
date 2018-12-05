@@ -3,8 +3,8 @@
 import {BaseModel} from 'nxus-storage'
 
 /**
- * Queued Task model.
- * Used to track progress, completion of worker-queue tasks.
+ * Queued Task model
+ * used to track progress, completion of worker-queue tasks.
  *
  */
 const QueuedTaskModel = BaseModel.extend(
@@ -14,14 +14,18 @@ const QueuedTaskModel = BaseModel.extend(
     identity: 'queued_task',
     attributes: {
       name: 'string',
+      jobId: 'string',
       /** @type {float} value from 0 to 1 */
       progress: 'float',
-      taskData: 'json',
       completed: {
         type: 'boolean',
         defaultsTo: false,
       },
-      route: 'string'
+      taskData: 'json',
+      taskResults: 'json',
+      lifespan: 'float',
+      route: 'string',
+      expiresAt: 'datetime'
     }
   })
 
