@@ -143,15 +143,15 @@ class QueuedTask extends HasModels {
     workerQueue.worker(name,
       async (job) => {
         this._setupQueue(name, job.queue)
-        let state = await this.getTaskState(job.data.id)
-        state = await handler(state)
-          .catch((err) => {
-            return {taskResults: {msg: err.message, severity: 'error'}}
-          })
-          .then((rslt) => {
-            let properties = Object.assign({}, rslt, finalTaskProperties)
-            return this.updateTaskState(state.id, properties)
-          })
+        let state = await this.getTaskState(job.data.id), rslt
+        try {
+          rslt = await handler(state)
+        }
+        catch (err) {
+          rslt = {taskResults: {msg: err.message, severity: 'error'}}
+        }
+        let properties = Object.assign({}, rslt, finalTaskProperties)
+        state = await this.updateTaskState(state.id, properties)
         return state
       },
       options)
@@ -278,12 +278,11 @@ class QueuedTask extends HasModels {
 
   async _requestHandler(route, taskName, initiate, req, res) {
     let taskId = req.body.id,
-        promise
+        promise, state
 
     function isChanged(state, timestamp) { return (!state || state.completed || (state.timestamp > timestamp)) }
 
     if (!taskId) { // initial request
-      let state
       try {
         state = await initiate(req)
         state = await this._updateTaskState(state.id, {route})
@@ -294,7 +293,7 @@ class QueuedTask extends HasModels {
       promise = Promise.resolve(state)
     }
     else { // status poll
-      let state = await this.getTaskState(taskId)
+      state = await this.getTaskState(taskId)
       if (route !== state.route) {
         this.log.error('queued-task _requestHandler route mismatch')
         promise = Promise.resolve()
@@ -329,12 +328,11 @@ class QueuedTask extends HasModels {
       }
     }
 
-    return promise.then((state) => {
-      state = state ?
-        pick(state, responseTaskProperties) :
-        {progress: 1.0, completed: true}
-      res.json({task: state})
-    })
+    state = await promise
+    state = state ?
+      pick(state, responseTaskProperties) :
+      {progress: 1.0, completed: true}
+    res.json({task: state})
   }
 
 
